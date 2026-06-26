@@ -4,10 +4,10 @@ Projeto de analise exploratoria e dashboard para diagnostico de anomalias no pro
 
 ## Equipe
 
-André Filipe Aloise
-Gustavo Morais de Almada
-Messyas Gois França
-Teodorio Ferreira Neto
+- André Filipe Aloise
+- Gustavo Morais de Almada
+- Messyas Gois França
+- Teodorio Ferreira Neto
 
 ## Artefatos da entrega
 
