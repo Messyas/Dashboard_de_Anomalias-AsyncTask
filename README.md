@@ -1,8 +1,15 @@
 # Dashboard de Anomalias - Setupbox
 
-Projeto de analise exploratoria e dashboard para diagnostico de anomalias no processo de gravacao de setupboxes.
+Projeto da tarefa de dashboard de anomalias no teste de gravação de setupboxes.
 
-## Artefatos da entrega
+## Integrantes
+
+- André Filipe Aloise
+- Messyas Gois França
+- Teodorio Ferreira Neto
+- Gustavo Morais de Almada
+
+## Arquivos principais
 
 - EDA: [Notebooks/1-EDA.ipynb](Notebooks/1-EDA.ipynb)
 - Dashboard: [Dashboard/app.py](Dashboard/app.py)
@@ -11,21 +18,21 @@ Projeto de analise exploratoria e dashboard para diagnostico de anomalias no pro
 - BPMN as-is: [BPMN-as-is.png](BPMN-as-is.png)
 - PDD: [pdd-setupbox.md](pdd-setupbox.md)
 
-## Como executar
+## Como rodar
 
-1. Instale as dependencias:
+1. Instale as dependências:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Abra e execute o notebook de EDA:
+2. Para abrir a análise exploratória:
 
 ```bash
 jupyter notebook Notebooks/1-EDA.ipynb
 ```
 
-3. Execute o dashboard:
+3. Para rodar o dashboard:
 
 ```bash
 streamlit run Dashboard/app.py

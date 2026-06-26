@@ -600,7 +600,7 @@ def build_markdown_report(kpis, pareto, main_defect, availability, cycle_data, s
     top_defect = "Sem falhas no filtro atual"
     if not pareto.empty:
         top = pareto.iloc[0]
-        top_defect = f"{top.iloc[0]} - {top['count']} ocorrencias ({top['pct']:.2%})"
+        top_defect = f"{top.iloc[0]} - {top['count']} ocorrências ({top['pct']:.2%})"
 
     main_start = main_defect["timestamp"].min() if not main_defect.empty else "N/A"
     main_end = main_defect["timestamp"].max() if not main_defect.empty else "N/A"
@@ -610,11 +610,11 @@ def build_markdown_report(kpis, pareto, main_defect, availability, cycle_data, s
         bottleneck = f"{row['step']} - mediana {row['median_s']:.2f}s"
 
     lines = [
-        "# Relatorio do Dashboard de Anomalias",
+        "# Relatório do dashboard de anomalias",
         "",
         "## KPIs",
         f"- Tentativas: {kpis['total_attempts']:,}",
-        f"- Seriais unicos: {kpis['total_serials']:,}",
+        f"- Seriais únicos: {kpis['total_serials']:,}",
         f"- Falhas: {kpis['total_failures']:,}",
         f"- FPY: {kpis['fpy']:.2%}",
         f"- Yield final: {kpis['final_yield']:.2%}",
@@ -627,10 +627,10 @@ def build_markdown_report(kpis, pareto, main_defect, availability, cycle_data, s
         "## Pareto",
         f"- Maior defeito no filtro atual: {top_defect}",
         "",
-        "## Defeito principal do EDA",
+        "## Defeito principal",
         f"- Par analisado: drm_keys + ERR_DRM",
-        f"- Ocorrencias no filtro atual: {len(main_defect):,}",
-        f"- Janela: {main_start} ate {main_end}",
+        f"- Ocorrências no filtro atual: {len(main_defect):,}",
+        f"- Janela: {main_start} até {main_end}",
         "",
         "## Downtime e disponibilidade",
     ]
@@ -658,7 +658,7 @@ def build_markdown_report(kpis, pareto, main_defect, availability, cycle_data, s
 
     lines.extend(["", "## Acesso remoto (fw_download / ERR_AUTH)"])
     if remote_data.empty:
-        lines.append("- Sem anomalias de acesso remoto no filtro atual.")
+        lines.append("- Sem falhas de acesso remoto no filtro atual.")
     else:
         for _, row in remote_data.head(10).iterrows():
             lines.append(
@@ -669,24 +669,24 @@ def build_markdown_report(kpis, pareto, main_defect, availability, cycle_data, s
 
     lines.extend(["", "## Bluetooth"])
     if bt_data.empty:
-        lines.append("- Sem anomalias de Bluetooth no filtro atual.")
+        lines.append("- Sem falhas de Bluetooth no filtro atual.")
     else:
         for _, row in bt_data.head(10).iterrows():
             lines.append(
-                f"- Linha {row['line']} / Estacao {row['station']} / Jig {row['jig_id']} / Modelo {row['model']}: "
+                f"- Linha {row['line']} / Estação {row['station']} / Jig {row['jig_id']} / Modelo {row['model']}: "
                 f"taxa BT {row['bt_fail_rate']:.2%} "
                 f"({int(row['bt_fail'])} falhas em {int(row['total_bt'])} tentativas)"
             )
 
     lines.extend(["", "## Cabo (0 canais)"])
     if cable_data.empty:
-        lines.append("- Sem anomalias de cabo no filtro atual.")
+        lines.append("- Sem falhas de cabo no filtro atual.")
     else:
         for _, row in cable_data.head(10).iterrows():
             lines.append(
-                f"- Linha {row['line']} / Estacao {row['station']} / Jig {row['jig_id']} / Modelo {row['model']}: "
+                f"- Linha {row['line']} / Estação {row['station']} / Jig {row['jig_id']} / Modelo {row['model']}: "
                 f"taxa 0 canais {row['zero_channels_rate']:.2%} "
-                f"({int(row['zero_channels'])} ocorrencias em {int(row['total_cable'])} tentativas)"
+                f"({int(row['zero_channels'])} ocorrências em {int(row['total_cable'])} tentativas)"
             )
 
     lines.extend(["", "## Integridade"])
@@ -708,18 +708,103 @@ def build_markdown_report(kpis, pareto, main_defect, availability, cycle_data, s
     lines.extend(
         [
             "",
-            "## Observacao",
-            "Relatorio gerado automaticamente a partir dos filtros aplicados no dashboard.",
+            "## Observação",
+            "Relatório gerado a partir dos filtros aplicados no dashboard.",
         ]
     )
     return "\n".join(lines)
 
 
+def format_time_window(start, end):
+    if pd.isna(start) or pd.isna(end):
+        return "janela não identificada"
+
+    duration = end - start
+    hours = duration.total_seconds() / 3600
+    if hours >= 1:
+        duration_text = f"{hours:.1f}h"
+    else:
+        duration_text = f"{duration.total_seconds() / 60:.0f}min"
+
+    return f"{start:%d/%m %H:%M} até {end:%d/%m %H:%M} ({duration_text})"
+
+
+def most_common_value(data: pd.DataFrame, column: str):
+    values = data[column].dropna()
+    if values.empty:
+        return "N/A"
+    return values.mode().iloc[0]
+
+
+def build_key_findings(data: pd.DataFrame):
+    if data.empty:
+        return ["Sem registros para os filtros atuais."]
+
+    findings = []
+    failures = data[data["result"].eq("FAIL")]
+
+    if not failures.empty:
+        top_step = failures["failed_step"].dropna().value_counts()
+        top_error = failures["error_code"].dropna().value_counts()
+        if not top_step.empty and not top_error.empty:
+            step_name = top_step.index[0]
+            error_name = top_error.index[0]
+            step_share = top_step.iloc[0] / len(failures)
+            error_share = top_error.iloc[0] / len(failures)
+            findings.append(
+                f"O maior volume de falha está em {step_name} ({step_share:.1%}); "
+                f"o erro mais frequente é {error_name} ({error_share:.1%})."
+            )
+
+    analysis_data = add_main_defect_flags(data)
+    main_defect = analysis_data[analysis_data["is_main_defect"]]
+    if not main_defect.empty:
+        line = most_common_value(main_defect, "line")
+        station = most_common_value(main_defect, "station")
+        jig = most_common_value(main_defect, "jig_id")
+        firmware = most_common_value(main_defect, "firmware_version")
+        window = format_time_window(
+            main_defect["timestamp"].min(),
+            main_defect["timestamp"].max(),
+        )
+        findings.append(
+            f"DRM é o defeito que mais chama atenção: {len(main_defect):,} casos, "
+            f"principalmente em {line} / {station} / {jig}, firmware {firmware}, de {window}."
+        )
+
+    remote_data = remote_summary(data)
+    if not remote_data.empty:
+        row = remote_data.iloc[0]
+        findings.append(
+            f"Falha remota aparece mais em {row['line']} com a API key {row['api_key']} "
+            f"({row['remote_defect_rate']:.1%})."
+        )
+
+    cable_data, zero_channel_rows = cable_summary(data)
+    if not zero_channel_rows.empty:
+        window = format_time_window(
+            zero_channel_rows["timestamp"].min(),
+            zero_channel_rows["timestamp"].max(),
+        )
+        findings.append(
+            f"Foram encontrados {len(zero_channel_rows):,} casos com 0 canais no cabo, de {window}."
+        )
+
+    _, bad_mac_rows = integrity_checks(data)
+    if not bad_mac_rows.empty:
+        bad_mac_count = bad_mac_rows["mac_address"].nunique()
+        findings.append(
+            f"Integridade precisa de atenção: {bad_mac_count:,} MAC(s) aparecem em mais de um serial."
+        )
+
+    return findings[:5] if findings else ["Nenhum ponto crítico apareceu com os filtros atuais."]
+
+
 st.title("Dashboard de Anomalias")
-st.caption("Dashboard em construcao com filtros, KPIs, falhas e auditoria.")
+st.caption("Análise do teste de gravação de setupboxes, com filtros, KPIs, falhas e auditoria.")
 
 if not DATA_PATH.exists():
-    st.error(f"Arquivo nao encontrado: {DATA_PATH}")
+    st.error(f"Arquivo não encontrado: {DATA_PATH}")
     st.stop()
 
 recordings, line_stops, data_dictionary = load_data(DATA_PATH)
@@ -747,7 +832,7 @@ with st.sidebar:
 
     selected_filters = {
         "line": st.multiselect("Linha", get_options(recordings, "line")),
-        "station": st.multiselect("Estacao", get_options(recordings, "station")),
+        "station": st.multiselect("Estação", get_options(recordings, "station")),
         "jig_id": st.multiselect("Jig", get_options(recordings, "jig_id")),
         "operator": st.multiselect("Operador", get_options(recordings, "operator")),
         "shift": st.multiselect("Turno", get_options(recordings, "shift")),
@@ -762,7 +847,7 @@ with st.sidebar:
             get_options(recordings, "disposition"),
         ),
         "error_code": st.multiselect(
-            "Codigo de erro",
+            "Código de erro",
             get_options(recordings, "error_code"),
         ),
     }
@@ -785,7 +870,7 @@ filtered_kpis = calculate_kpis(filtered_recordings)
 
 tab_overview, tab_failures, tab_time, tab_audit, tab_docs = st.tabs(
     [
-        "Visao geral",
+        "Visão geral",
         "Falhas",
         "Tempo e paradas",
         "Auditoria",
@@ -795,23 +880,23 @@ tab_overview, tab_failures, tab_time, tab_audit, tab_docs = st.tabs(
 
 
 with tab_overview:
-    st.subheader("Dados carregados")
+    st.subheader("Base carregada")
 
     col1, col2, col3 = st.columns(3)
     col1.metric("recordings", f"{len(recordings):,} linhas")
     col2.metric("line_stops", f"{len(line_stops):,} linhas")
     col3.metric("data_dictionary", f"{len(data_dictionary):,} linhas")
 
-    st.subheader("Dados filtrados")
+    st.subheader("Recorte atual")
     col1, col2, col3 = st.columns(3)
     col1.metric("Registros filtrados", f"{len(filtered_recordings):,}")
-    col2.metric("Seriais unicos", f"{filtered_recordings['serial_number'].nunique():,}")
+    col2.metric("Seriais únicos", f"{filtered_recordings['serial_number'].nunique():,}")
     col3.metric("Paradas filtradas", f"{len(filtered_line_stops):,}")
 
-    st.subheader("KPIs solicitados")
+    st.subheader("KPIs gerais")
     row1 = st.columns(4)
     row1[0].metric("Tentativas", f"{filtered_kpis['total_attempts']:,}")
-    row1[1].metric("Seriais unicos", f"{filtered_kpis['total_serials']:,}")
+    row1[1].metric("Seriais únicos", f"{filtered_kpis['total_serials']:,}")
     row1[2].metric("Falhas", f"{filtered_kpis['total_failures']:,}")
     row1[3].metric("FPY", f"{filtered_kpis['fpy']:.2%}")
 
@@ -824,16 +909,20 @@ with tab_overview:
     row3 = st.columns(4)
     row3[0].metric("DPMO geral", f"{filtered_kpis['dpmo']:,.0f}")
     row3[1].metric("UPH", f"{filtered_kpis['uph']:,.2f}")
-    row3[2].metric("UPH por estacao", f"{filtered_kpis['uph_per_station']:,.2f}")
+    row3[2].metric("UPH por estação", f"{filtered_kpis['uph_per_station']:,.2f}")
     row3[3].metric("Horas observadas", f"{filtered_kpis['elapsed_hours']:,.2f}")
 
-    st.subheader("Yield por dimensao")
+    st.subheader("Resumo dos achados")
+    for finding in build_key_findings(filtered_recordings):
+        st.markdown(f"- {finding}")
+
+    st.subheader("Yield por dimensão")
     yield_dimension = st.selectbox(
-        "Dimensao do yield",
+        "Dimensão do yield",
         ["line", "station", "model", "firmware_version"],
         format_func={
             "line": "Linha",
-            "station": "Estacao",
+            "station": "Estação",
             "model": "Modelo",
             "firmware_version": "Firmware",
         }.get,
@@ -841,7 +930,7 @@ with tab_overview:
     yield_data = yield_summary_by(filtered_recordings, yield_dimension)
 
     if yield_data.empty:
-        st.info("Nao ha dados suficientes para calcular yield com os filtros atuais.")
+        st.info("Não há dados suficientes para calcular yield com os filtros atuais.")
     else:
         fig_yield = go.Figure()
         fig_yield.add_bar(
@@ -863,7 +952,7 @@ with tab_overview:
             ),
         )
         fig_yield.update_layout(
-            title="FPY por dimensao",
+            title="FPY por dimensão",
             xaxis_title="FPY",
             yaxis_title="",
             xaxis_tickformat=".0%",
@@ -876,7 +965,7 @@ with tab_overview:
             yield_display[column] = yield_display[column].map("{:.2%}".format)
         st.dataframe(yield_display, use_container_width=True, hide_index=True)
 
-    st.subheader("Previa da base principal")
+    st.subheader("Prévia da base principal")
     st.dataframe(filtered_recordings.head(100), use_container_width=True)
 
 
@@ -897,14 +986,14 @@ with tab_failures:
         ["failed_step", "error_code"],
         format_func={
             "failed_step": "Etapa com falha",
-            "error_code": "Codigo de erro",
+            "error_code": "Código de erro",
         }.get,
         horizontal=True,
     )
 
     pareto = build_pareto(failures, pareto_column)
     if pareto.empty:
-        st.info("Nao ha falhas para os filtros atuais.")
+        st.info("Não há falhas para os filtros atuais.")
     else:
         st.plotly_chart(
             plot_pareto(
@@ -923,7 +1012,7 @@ with tab_failures:
     st.subheader("DPMO por etapa")
     dpmo_step_data = dpmo_by_step(filtered_recordings)
     if dpmo_step_data.empty:
-        st.info("Nao ha dados suficientes para calcular DPMO por etapa.")
+        st.info("Não há dados suficientes para calcular DPMO por etapa.")
     else:
         fig_dpmo = go.Figure()
         fig_dpmo.add_bar(
@@ -961,7 +1050,7 @@ with tab_failures:
     st.subheader("Jig x etapa")
     jig_step_rate = jig_step_matrix(filtered_recordings)
     if jig_step_rate.empty:
-        st.info("Nao ha dados suficientes para montar a matriz Jig x etapa.")
+        st.info("Não há dados suficientes para montar a matriz Jig x etapa.")
     else:
         fig_jig_step = go.Figure(
             data=go.Heatmap(
@@ -990,7 +1079,7 @@ with tab_failures:
             use_container_width=True,
         )
 
-    st.subheader("Defeito principal do EDA: drm_keys / ERR_DRM")
+    st.subheader("Defeito principal: drm_keys / ERR_DRM")
     analysis_data = add_main_defect_flags(filtered_recordings)
     main_defect = analysis_data[analysis_data["is_main_defect"]]
     total_failures = analysis_data["is_fail"].sum()
@@ -1002,17 +1091,17 @@ with tab_failures:
     )
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Ocorrencias", f"{len(main_defect):,}")
-    col2.metric("Participacao nas falhas", f"{main_share_failures:.2%}")
-    col3.metric("Participacao nas tentativas", f"{main_share_attempts:.2%}")
+    col1.metric("Ocorrências", f"{len(main_defect):,}")
+    col2.metric("Participação nas falhas", f"{main_share_failures:.2%}")
+    col3.metric("Participação nas tentativas", f"{main_share_attempts:.2%}")
 
     if main_defect.empty:
-        st.info("O defeito principal nao aparece nos filtros atuais.")
+        st.info("O defeito principal não aparece nos filtros atuais.")
     else:
         start_defect = main_defect["timestamp"].min()
         end_defect = main_defect["timestamp"].max()
         st.caption(
-            f"Janela filtrada do defeito: {start_defect} ate {end_defect}"
+            f"Janela filtrada do defeito: {start_defect} até {end_defect}"
         )
 
         dimension = st.selectbox(
@@ -1027,7 +1116,7 @@ with tab_failures:
             ],
             format_func={
                 "line": "Linha",
-                "station": "Estacao",
+                "station": "Estação",
                 "jig_id": "Jig",
                 "firmware_version": "Firmware",
                 "model": "Modelo",
@@ -1062,7 +1151,7 @@ with tab_failures:
             ),
         )
         fig.update_layout(
-            title="Taxa do defeito principal por dimensao",
+            title="Taxa do defeito principal por dimensão",
             xaxis_title="Taxa do defeito principal",
             yaxis_title="",
             xaxis_tickformat=".0%",
@@ -1085,7 +1174,7 @@ with tab_failures:
     st.subheader("Rework e scrap")
     disposition_data = disposition_summary(filtered_recordings)
     if disposition_data.empty:
-        st.info("Nao ha dados de disposition para os filtros atuais.")
+        st.info("Não há dados de disposition para os filtros atuais.")
     else:
         fig_disposition = go.Figure()
         fig_disposition.add_bar(
@@ -1103,7 +1192,7 @@ with tab_failures:
 
     scrap_data = scrap_by_defect(filtered_recordings).head(20)
     if scrap_data.empty:
-        st.info("Nao ha scrap nos filtros atuais.")
+        st.info("Não há scrap nos filtros atuais.")
     else:
         fig_scrap = go.Figure()
         fig_scrap.add_bar(
@@ -1131,7 +1220,7 @@ with tab_failures:
     st.subheader("Acesso remoto: fw_download / ERR_AUTH")
     remote_data = remote_summary(filtered_recordings).head(15)
     if remote_data.empty:
-        st.info("Nao ha dados para o recorte remoto nos filtros atuais.")
+        st.info("Não há dados para o recorte remoto nos filtros atuais.")
     else:
         fig_remote = go.Figure()
         fig_remote.add_bar(
@@ -1176,18 +1265,18 @@ with tab_failures:
     with col1:
         st.markdown("**Bluetooth**")
         if bt_data.empty:
-            st.info("Nao ha dados de Bluetooth nos filtros atuais.")
+            st.info("Não há dados de Bluetooth nos filtros atuais.")
         else:
             st.dataframe(bt_data, use_container_width=True, hide_index=True)
     with col2:
         st.markdown("**Cabo / 0 canais**")
         if cable_top.empty:
-            st.info("Nao ha dados de cabo nos filtros atuais.")
+            st.info("Não há dados de cabo nos filtros atuais.")
         else:
             st.dataframe(cable_top, use_container_width=True, hide_index=True)
 
     if not zero_channel_rows.empty:
-        st.caption(f"Ocorrencias com 0 canais: {len(zero_channel_rows):,}")
+        st.caption(f"Ocorrências com 0 canais: {len(zero_channel_rows):,}")
         zero_columns = [
             "timestamp",
             "line",
@@ -1209,7 +1298,7 @@ with tab_failures:
     st.subheader("Integridade: MAC e serial")
     integrity_summary, bad_mac_rows = integrity_checks(filtered_recordings)
     if integrity_summary.empty:
-        st.info("Nao ha dados para checagem de integridade nos filtros atuais.")
+        st.info("Não há dados para checagem de integridade nos filtros atuais.")
     else:
         st.dataframe(integrity_summary, use_container_width=True, hide_index=True)
 
@@ -1228,9 +1317,9 @@ with tab_time:
     available_lines = sorted(time_data["line"].dropna().unique().tolist()) if not time_data.empty else []
 
     if not available_lines:
-        st.info("Nao ha dados temporais para os filtros atuais.")
+        st.info("Não há dados temporais para os filtros atuais.")
     else:
-        selected_line_time = st.selectbox("Linha para serie temporal", available_lines)
+        selected_line_time = st.selectbox("Linha para série temporal", available_lines)
         line_time = time_data[time_data["line"].eq(selected_line_time)]
         line_stops = filtered_line_stops[filtered_line_stops["line"].eq(selected_line_time)]
 
@@ -1268,10 +1357,10 @@ with tab_time:
         )
         st.plotly_chart(fig_time, use_container_width=True)
 
-    st.subheader("Tendencia do defeito principal")
+    st.subheader("Tendência do defeito principal")
     main_time = main_defect_time(filtered_recordings)
     if main_time.empty:
-        st.info("Nao ha dados do defeito principal para os filtros atuais.")
+        st.info("Não há dados do defeito principal para os filtros atuais.")
     else:
         fig_main_time = go.Figure()
         fig_main_time.add_scatter(
@@ -1284,7 +1373,7 @@ with tab_time:
             x=main_time["timestamp"],
             y=main_time["main_defect_rate_ma3"],
             mode="lines",
-            name="Media movel 3 janelas",
+            name="Média móvel de 3 janelas",
             line={"width": 3},
         )
         fig_main_time.update_layout(
@@ -1303,7 +1392,7 @@ with tab_time:
     col1, col2 = st.columns(2)
     with col1:
         if downtime_data.empty:
-            st.info("Nao ha paradas nos filtros atuais.")
+            st.info("Não há paradas nos filtros atuais.")
         else:
             fig_downtime = go.Figure()
             fig_downtime.add_bar(
@@ -1328,7 +1417,7 @@ with tab_time:
             st.plotly_chart(fig_downtime, use_container_width=True)
     with col2:
         if availability_data.empty:
-            st.info("Nao ha dados para disponibilidade.")
+            st.info("Não há dados para disponibilidade.")
         else:
             fig_availability = go.Figure()
             fig_availability.add_bar(
@@ -1356,7 +1445,7 @@ with tab_time:
     st.subheader("Cycle time")
     cycle_data = cycle_time_summary(filtered_recordings)
     if cycle_data.empty:
-        st.info("Nao ha dados de cycle time para os filtros atuais.")
+        st.info("Não há dados de cycle time para os filtros atuais.")
     else:
         bottleneck = cycle_data.iloc[0]
         st.metric("Gargalo por mediana", f"{bottleneck['step']} ({bottleneck['median_s']:.2f}s)")
@@ -1444,7 +1533,7 @@ with tab_audit:
         disabled=audit_data.empty,
     )
 
-    st.subheader("Relatorio exportavel")
+    st.subheader("Relatório exportável")
     report_pareto = build_pareto(
         filtered_recordings[filtered_recordings["result"].eq("FAIL")],
         "error_code",
@@ -1473,7 +1562,7 @@ with tab_audit:
     )
 
     st.download_button(
-        "Baixar relatorio Markdown",
+        "Baixar relatório Markdown",
         data=report_text.encode("utf-8"),
         file_name="relatorio_anomalias.md",
         mime="text/markdown",
