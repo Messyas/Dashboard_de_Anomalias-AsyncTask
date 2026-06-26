@@ -442,7 +442,10 @@ def cycle_time_summary(data: pd.DataFrame):
             }
         )
 
-    return pd.DataFrame(rows).sort_values("median_s", ascending=False)
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+    return df.sort_values("median_s", ascending=False)
 
 
 def disposition_summary(data: pd.DataFrame):
