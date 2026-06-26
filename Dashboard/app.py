@@ -11,7 +11,7 @@ st.set_page_config(
 
 
 st.title("Dashboard de Anomalias")
-st.caption("Estrutura inicial do dashboard. As analises serao adicionadas depois.")
+st.caption("Estrutura inicial do dashboard. As análises serão adicionadas depois.")
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 BPMN_IMAGE = BASE_DIR / "BPMN-as-is.png"
@@ -19,12 +19,12 @@ BPMN_IMAGE = BASE_DIR / "BPMN-as-is.png"
 
 with st.sidebar:
     st.header("Filtros")
-    st.info("Filtros serao adicionados quando os dados forem integrados.")
+    st.info("Filtros serão adicionados quando os dados forem integrados.")
 
 
 tab_overview, tab_failures, tab_time, tab_audit, tab_docs = st.tabs(
     [
-        "Visao geral",
+        "Visão geral",
         "Falhas",
         "Tempo e paradas",
         "Auditoria",
@@ -34,23 +34,23 @@ tab_overview, tab_failures, tab_time, tab_audit, tab_docs = st.tabs(
 
 
 with tab_overview:
-    st.subheader("Visao geral")
-    st.info("Area reservada para KPIs gerais do processo.")
+    st.subheader("Visão geral")
+    st.info("Área reservada para KPIs gerais do processo.")
 
 
 with tab_failures:
     st.subheader("Falhas")
-    st.info("Area reservada para Pareto, Jig x etapa e analises de defeitos.")
+    st.info("Área reservada para Pareto, Jig x etapa e análises de defeitos.")
 
 
 with tab_time:
     st.subheader("Tempo e paradas")
-    st.info("Area reservada para cycle time, falhas no tempo e downtime.")
+    st.info("Área reservada para cycle time, falhas no tempo e downtime.")
 
 
 with tab_audit:
     st.subheader("Auditoria")
-    st.info("Area reservada para tabela filtravel e exportacao CSV.")
+    st.info("Área reservada para tabela filtrável e exportação CSV.")
 
 
 with tab_docs:
@@ -60,4 +60,4 @@ with tab_docs:
     else:
         st.info("Adicione o arquivo BPMN-as-is.png na raiz do projeto.")
 
-    st.info("Area reservada para o PDD do processo.")
+    st.info("Área reservada para o PDD do processo.")
