@@ -596,7 +596,7 @@ def integrity_checks(data: pd.DataFrame):
     return summary, bad_mac_rows
 
 
-def build_markdown_report(kpis, pareto, main_defect, availability, cycle_data, scrap_data, integrity_summary):
+def build_markdown_report(kpis, pareto, main_defect, availability, cycle_data, scrap_data, integrity_summary, remote_data, bt_data, cable_data, integrity_bad_macs):
     top_defect = "Sem falhas no filtro atual"
     if not pareto.empty:
         top = pareto.iloc[0]
@@ -656,12 +656,54 @@ def build_markdown_report(kpis, pareto, main_defect, availability, cycle_data, s
                 f"{row['scrap_count']} scraps"
             )
 
+    lines.extend(["", "## Acesso remoto (fw_download / ERR_AUTH)"])
+    if remote_data.empty:
+        lines.append("- Sem anomalias de acesso remoto no filtro atual.")
+    else:
+        for _, row in remote_data.head(10).iterrows():
+            lines.append(
+                f"- Linha {row['line']} / API key {row['api_key']}: "
+                f"taxa remota {row['remote_defect_rate']:.2%} "
+                f"({int(row['remote_defects'])} falhas em {int(row['total_attempts'])} tentativas)"
+            )
+
+    lines.extend(["", "## Bluetooth"])
+    if bt_data.empty:
+        lines.append("- Sem anomalias de Bluetooth no filtro atual.")
+    else:
+        for _, row in bt_data.head(10).iterrows():
+            lines.append(
+                f"- Linha {row['line']} / Estacao {row['station']} / Jig {row['jig_id']} / Modelo {row['model']}: "
+                f"taxa BT {row['bt_fail_rate']:.2%} "
+                f"({int(row['bt_fail'])} falhas em {int(row['total_bt'])} tentativas)"
+            )
+
+    lines.extend(["", "## Cabo (0 canais)"])
+    if cable_data.empty:
+        lines.append("- Sem anomalias de cabo no filtro atual.")
+    else:
+        for _, row in cable_data.head(10).iterrows():
+            lines.append(
+                f"- Linha {row['line']} / Estacao {row['station']} / Jig {row['jig_id']} / Modelo {row['model']}: "
+                f"taxa 0 canais {row['zero_channels_rate']:.2%} "
+                f"({int(row['zero_channels'])} ocorrencias em {int(row['total_cable'])} tentativas)"
+            )
+
     lines.extend(["", "## Integridade"])
     if integrity_summary.empty:
         lines.append("- Sem dados de integridade no filtro atual.")
     else:
         for _, row in integrity_summary.iterrows():
             lines.append(f"- {row['check']}: {row['count']}")
+
+    if not integrity_bad_macs.empty:
+        lines.extend(["", "### MACs associados a mais de um serial"])
+        for _, row in integrity_bad_macs.head(20).iterrows():
+            lines.append(
+                f"- MAC {row['mac_address']} / Serial {row['serial_number']} / "
+                f"Linha {row['line']} / Jig {row['jig_id']} / "
+                f"Timestamp {row['timestamp']}"
+            )
 
     lines.extend(
         [
@@ -1412,6 +1454,10 @@ with tab_audit:
     report_availability = availability_by_line(filtered_recordings, filtered_line_stops)
     report_cycle = cycle_time_summary(filtered_recordings)
     report_scrap = scrap_by_defect(filtered_recordings)
+    report_remote = remote_summary(filtered_recordings)
+    report_bt = bluetooth_summary(filtered_recordings)
+    report_cable, _ = cable_summary(filtered_recordings)
+    report_integrity_summary, report_bad_macs = integrity_checks(filtered_recordings)
     report_text = build_markdown_report(
         filtered_kpis,
         report_pareto,
@@ -1419,7 +1465,11 @@ with tab_audit:
         report_availability,
         report_cycle,
         report_scrap,
-        integrity_summary,
+        report_integrity_summary,
+        report_remote,
+        report_bt,
+        report_cable,
+        report_bad_macs,
     )
 
     st.download_button(
