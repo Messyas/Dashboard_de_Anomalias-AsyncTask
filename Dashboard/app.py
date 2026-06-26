@@ -90,7 +90,4 @@ with tab_docs:
     else:
         st.info("Adicione o arquivo BPMN-as-is.png na raiz do projeto.")
 
-    st.subheader("Dicionario de dados")
-    st.dataframe(data_dictionary, use_container_width=True)
-
     st.info("Area reservada para o PDD do processo.")
