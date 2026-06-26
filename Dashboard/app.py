@@ -1206,6 +1206,19 @@ with tab_failures:
             hide_index=True,
         )
 
+    st.subheader("Integridade: MAC e serial")
+    integrity_summary, bad_mac_rows = integrity_checks(filtered_recordings)
+    if integrity_summary.empty:
+        st.info("Nao ha dados para checagem de integridade nos filtros atuais.")
+    else:
+        st.dataframe(integrity_summary, use_container_width=True, hide_index=True)
+
+    if bad_mac_rows.empty:
+        st.success("Nenhum MAC usado por mais de um serial nos filtros atuais.")
+    else:
+        st.warning("Existem MACs associados a mais de um serial nos filtros atuais.")
+        st.dataframe(bad_mac_rows.head(200), use_container_width=True, hide_index=True)
+
 
 with tab_time:
     st.subheader("Tempo e paradas")
@@ -1430,19 +1443,6 @@ with tab_audit:
         mime="text/csv",
         disabled=audit_data.empty,
     )
-
-    st.subheader("Integridade: MAC e serial")
-    integrity_summary, bad_mac_rows = integrity_checks(filtered_recordings)
-    if integrity_summary.empty:
-        st.info("Nao ha dados para checagem de integridade nos filtros atuais.")
-    else:
-        st.dataframe(integrity_summary, use_container_width=True, hide_index=True)
-
-    if bad_mac_rows.empty:
-        st.success("Nenhum MAC usado por mais de um serial nos filtros atuais.")
-    else:
-        st.warning("Existem MACs associados a mais de um serial nos filtros atuais.")
-        st.dataframe(bad_mac_rows.head(200), use_container_width=True, hide_index=True)
 
     st.subheader("Relatorio exportavel")
     report_pareto = build_pareto(
