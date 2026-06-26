@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 
@@ -64,6 +65,99 @@ def filter_line_stops(data: pd.DataFrame, start_date, end_date, selected_lines):
         filtered = filtered[filtered["line"].isin(selected_lines)]
 
     return filtered
+
+
+def build_pareto(data: pd.DataFrame, column: str):
+    pareto = (
+        data[column]
+        .dropna()
+        .value_counts()
+        .rename_axis(column)
+        .reset_index(name="count")
+    )
+
+    if pareto.empty:
+        pareto["pct"] = []
+        pareto["cum_pct"] = []
+        return pareto
+
+    pareto["pct"] = pareto["count"] / pareto["count"].sum()
+    pareto["cum_pct"] = pareto["pct"].cumsum()
+    return pareto
+
+
+def plot_pareto(pareto: pd.DataFrame, column: str, title: str):
+    fig = go.Figure()
+    fig.add_bar(
+        x=pareto[column],
+        y=pareto["count"],
+        name="Quantidade",
+        text=pareto["count"],
+        textposition="outside",
+    )
+    fig.add_scatter(
+        x=pareto[column],
+        y=pareto["cum_pct"],
+        name="% acumulado",
+        mode="lines+markers",
+        yaxis="y2",
+    )
+    fig.add_hline(
+        y=0.8,
+        line_dash="dash",
+        line_color="#777",
+        yref="y2",
+    )
+    fig.update_layout(
+        title=title,
+        xaxis_title="",
+        yaxis_title="Quantidade de falhas",
+        yaxis2={
+            "title": "% acumulado",
+            "overlaying": "y",
+            "side": "right",
+            "tickformat": ".0%",
+            "range": [0, 1.05],
+        },
+        legend={"orientation": "h", "y": 1.12},
+        margin={"t": 80},
+    )
+    return fig
+
+
+def format_pareto_table(pareto: pd.DataFrame):
+    display_data = pareto.copy()
+    display_data["pct"] = display_data["pct"].map("{:.2%}".format)
+    display_data["cum_pct"] = display_data["cum_pct"].map("{:.2%}".format)
+    return display_data
+
+
+def add_main_defect_flags(data: pd.DataFrame):
+    flagged = data.copy()
+    flagged["is_fail"] = flagged["result"].eq("FAIL")
+    flagged["is_main_defect"] = (
+        flagged["failed_step"].eq("drm_keys")
+        | flagged["error_code"].eq("ERR_DRM")
+    )
+    return flagged
+
+
+def summarize_main_defect(data: pd.DataFrame, dimension: str):
+    summary = (
+        data.groupby(dimension, dropna=False)
+        .agg(
+            total_attempts=("result", "size"),
+            total_failures=("is_fail", "sum"),
+            main_defects=("is_main_defect", "sum"),
+        )
+        .reset_index()
+    )
+    summary["failure_rate"] = summary["total_failures"] / summary["total_attempts"]
+    summary["main_defect_rate"] = (
+        summary["main_defects"] / summary["total_attempts"]
+    )
+    summary["ppm_main_defect"] = summary["main_defect_rate"] * 1_000_000
+    return summary.sort_values("main_defect_rate", ascending=False)
 
 
 st.title("Dashboard de Anomalias")
@@ -164,7 +258,134 @@ with tab_overview:
 
 with tab_failures:
     st.subheader("Falhas")
-    st.info("Area reservada para Pareto, Jig x etapa e analises de defeitos.")
+
+    failures = filtered_recordings[filtered_recordings["result"].eq("FAIL")].copy()
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Tentativas filtradas", f"{len(filtered_recordings):,}")
+    col2.metric("Falhas filtradas", f"{len(failures):,}")
+    failure_rate = len(failures) / len(filtered_recordings) if len(filtered_recordings) else 0
+    col3.metric("Taxa de falha", f"{failure_rate:.2%}")
+
+    st.subheader("Pareto de defeitos")
+    pareto_column = st.radio(
+        "Agrupar Pareto por",
+        ["failed_step", "error_code"],
+        format_func={
+            "failed_step": "Etapa com falha",
+            "error_code": "Codigo de erro",
+        }.get,
+        horizontal=True,
+    )
+
+    pareto = build_pareto(failures, pareto_column)
+    if pareto.empty:
+        st.info("Nao ha falhas para os filtros atuais.")
+    else:
+        st.plotly_chart(
+            plot_pareto(
+                pareto,
+                pareto_column,
+                "Pareto de falhas",
+            ),
+            use_container_width=True,
+        )
+        st.dataframe(
+            format_pareto_table(pareto),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    st.subheader("Defeito principal do EDA: drm_keys / ERR_DRM")
+    analysis_data = add_main_defect_flags(filtered_recordings)
+    main_defect = analysis_data[analysis_data["is_main_defect"]]
+    total_failures = analysis_data["is_fail"].sum()
+    main_share_failures = (
+        len(main_defect) / total_failures if total_failures else 0
+    )
+    main_share_attempts = (
+        len(main_defect) / len(analysis_data) if len(analysis_data) else 0
+    )
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Ocorrencias", f"{len(main_defect):,}")
+    col2.metric("Participacao nas falhas", f"{main_share_failures:.2%}")
+    col3.metric("Participacao nas tentativas", f"{main_share_attempts:.2%}")
+
+    if main_defect.empty:
+        st.info("O defeito principal nao aparece nos filtros atuais.")
+    else:
+        start_defect = main_defect["timestamp"].min()
+        end_defect = main_defect["timestamp"].max()
+        st.caption(
+            f"Janela filtrada do defeito: {start_defect} ate {end_defect}"
+        )
+
+        dimension = st.selectbox(
+            "Recortar defeito principal por",
+            [
+                "line",
+                "station",
+                "jig_id",
+                "firmware_version",
+                "model",
+                "api_key",
+            ],
+            format_func={
+                "line": "Linha",
+                "station": "Estacao",
+                "jig_id": "Jig",
+                "firmware_version": "Firmware",
+                "model": "Modelo",
+                "api_key": "API key",
+            }.get,
+        )
+
+        summary = summarize_main_defect(analysis_data, dimension).head(12)
+        fig = go.Figure()
+        fig.add_bar(
+            x=summary["main_defect_rate"],
+            y=summary[dimension].astype(str),
+            orientation="h",
+            text=summary["main_defect_rate"].map("{:.2%}".format),
+            textposition="auto",
+            customdata=summary[
+                [
+                    "total_attempts",
+                    "total_failures",
+                    "main_defects",
+                    "ppm_main_defect",
+                ]
+            ],
+            hovertemplate=(
+                "%{y}<br>"
+                "Taxa do defeito: %{x:.2%}<br>"
+                "Tentativas: %{customdata[0]:,}<br>"
+                "Falhas: %{customdata[1]:,}<br>"
+                "Defeitos principais: %{customdata[2]:,}<br>"
+                "PPM: %{customdata[3]:,.0f}<extra></extra>"
+            ),
+        )
+        fig.update_layout(
+            title="Taxa do defeito principal por dimensao",
+            xaxis_title="Taxa do defeito principal",
+            yaxis_title="",
+            xaxis_tickformat=".0%",
+            yaxis={"autorange": "reversed"},
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        display_summary = summary.copy()
+        display_summary["failure_rate"] = display_summary["failure_rate"].map(
+            "{:.2%}".format
+        )
+        display_summary["main_defect_rate"] = display_summary[
+            "main_defect_rate"
+        ].map("{:.2%}".format)
+        display_summary["ppm_main_defect"] = display_summary[
+            "ppm_main_defect"
+        ].map("{:,.0f}".format)
+        st.dataframe(display_summary, use_container_width=True, hide_index=True)
 
 
 with tab_time:
