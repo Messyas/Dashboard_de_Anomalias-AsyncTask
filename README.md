@@ -2,6 +2,7 @@
 
 Projeto da tarefa de dashboard de anomalias no teste de gravação de setupboxes.
 
+<<<<<<< HEAD
 ## Integrantes
 
 - André Filipe Aloise
@@ -10,6 +11,16 @@ Projeto da tarefa de dashboard de anomalias no teste de gravação de setupboxes
 - Gustavo Morais de Almada
 
 ## Arquivos principais
+=======
+## Equipe
+
+- André Filipe Aloise
+- Gustavo Morais de Almada
+- Messyas Gois França
+- Teodorio Ferreira Neto
+
+## Artefatos da entrega
+>>>>>>> 634b8e8c064d49bef577d751920ebab8659f6339
 
 - EDA: [Notebooks/1-EDA.ipynb](Notebooks/1-EDA.ipynb)
 - Dashboard: [Dashboard/app.py](Dashboard/app.py)
