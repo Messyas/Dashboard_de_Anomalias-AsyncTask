@@ -2,6 +2,13 @@
 
 Projeto de analise exploratoria e dashboard para diagnostico de anomalias no processo de gravacao de setupboxes.
 
+## Equipe
+
+André Filipe Aloise
+Gustavo Morais de Almada
+Messyas Gois França
+Teodorio Ferreira Neto
+
 ## Artefatos da entrega
 
 - EDA: [Notebooks/1-EDA.ipynb](Notebooks/1-EDA.ipynb)
